@@ -289,7 +289,7 @@ export async function createApp(options: AppOptions = {}) {
   };
   app.get('/api/v1/threads', async (request) => {
     const current = await session(request);
-    const added =
+    const added: { session: string; thread: Thread; expires: number }[] =
       store instanceof TursoStore
         ? current
           ? await store.mails(current.id)

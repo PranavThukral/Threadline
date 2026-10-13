@@ -7,7 +7,7 @@ import { extractionSchema, evidenceSchema } from '../src/contracts.js';
 import { FREE_MODEL } from '../src/openrouter-provider.js';
 import { lintDraft } from '../src/workflow.js';
 
-const base = 'http://localhost:3000';
+const base = process.argv[2] ?? 'http://localhost:3000';
 const assert = (condition: unknown, message: string) => {
   if (!condition) throw new Error(message);
 };
@@ -88,9 +88,12 @@ try {
   const cached = await (
     await fetch(`${base}/api/v1/threads/${mail.id}/intelligence?source=live`, { headers })
   ).json();
-  assert(cached.state === 'ready' && cached.cache.layer === 'memory', 'PRIVATE_CACHE_FAILED');
+  assert(
+    cached.state === 'ready' && ['memory', 'sqlite'].includes(cached.cache.layer),
+    'PRIVATE_CACHE_FAILED',
+  );
   const replay = await invoke('analyze');
-  assert(replay.events[0].payload.cacheLayer === 'memory', 'CACHE_REPLAY_FAILED');
+  assert(replay.events[0].payload.cacheLayer === cached.cache.layer, 'CACHE_REPLAY_FAILED');
   const facts = ['I prefer video.'];
   const reply = await invoke('replies', { intent: 'answer', facts });
   const text = String(reply.terminal.payload.text);
@@ -101,7 +104,22 @@ try {
     'NO_REAL_DELTAS',
   );
   assert(reply.terminal.payload.recipients[0] === mail.messages[0].senderId, 'WRONG_RECIPIENT');
-  await fetch(`${base}/api/v1/reset`, { method: 'POST', headers, body: '{}' });
+  const otherSession = await fetch(`${base}/api/v1/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: base },
+    body: '{}',
+  });
+  const otherCookie = otherSession.headers.get('set-cookie')!.split(';')[0];
+  assert(
+    (await fetch(`${base}/api/v1/threads/${mail.id}`, { headers: { Cookie: otherCookie } }))
+      .status === 404,
+    'PRIVATE_MAIL_NOT_ISOLATED',
+  );
+  const reset = await fetch(`${base}/api/v1/reset`, { method: 'POST', headers, body: '{}' });
+  assert(
+    reset.ok && (await fetch(`${base}/api/v1/threads/${mail.id}`, { headers })).status === 404,
+    'RESET_NOT_COMPLETE',
+  );
   console.log(
     JSON.stringify({
       status: 'verified',
@@ -114,7 +132,9 @@ try {
       questions: extraction.questions.length,
       evidence: evidence.length,
       suppliedFactsUsed: true,
-      privateMemoryCache: true,
+      privateCacheLayer: cached.cache.layer,
+      crossSessionIsolation: true,
+      resetVerified: true,
       runsSettled: true,
     }),
   );

@@ -1,5 +1,5 @@
 import { createClient } from '@libsql/client/web';
-import type { Client, InValue, Transaction } from '@libsql/client/web';
+import type { Client, InValue, Transaction } from '@libsql/core/api';
 import { randomBytes } from 'node:crypto';
 import type { RuntimeStore } from './store.js';
 import type { Thread } from './domain.js';

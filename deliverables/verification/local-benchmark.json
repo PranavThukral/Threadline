@@ -1,0 +1,347 @@
+{
+  "measuredAt": "2026-10-06T20:46:58.383Z",
+  "runtime": "v24.19.0",
+  "profile": "Windows localhost, one Node process, SQLite in memory, four independent anonymous sessions (one per pass), recorded corpus, no network shaping",
+  "methodology": "Two sequential HTTP requests and JSON parsing per switch; no React paint, provider latency, or user time saved measured. Pass 0 is excluded from warm percentiles. Recorded reply pacing is artificial playback.",
+  "threadSwitch": {
+    "samples": 40,
+    "warmSamples": 30,
+    "warmP50Ms": 18.002099999999928,
+    "warmP95Ms": 19.83979999999997,
+    "raw": [
+      {
+        "pass": 0,
+        "thread": "recruiter-coordination",
+        "durationMs": 24.938800000000015
+      },
+      {
+        "pass": 0,
+        "thread": "meeting-coordination",
+        "durationMs": 19.386600000000044
+      },
+      {
+        "pass": 0,
+        "thread": "project-status",
+        "durationMs": 23.329000000000065
+      },
+      {
+        "pass": 0,
+        "thread": "customer-escalation",
+        "durationMs": 18.06269999999995
+      },
+      {
+        "pass": 0,
+        "thread": "long-project-history",
+        "durationMs": 20.28010000000006
+      },
+      {
+        "pass": 0,
+        "thread": "ambiguous-deadline",
+        "durationMs": 7.033199999999965
+      },
+      {
+        "pass": 0,
+        "thread": "informational-update",
+        "durationMs": 8.136999999999944
+      },
+      {
+        "pass": 0,
+        "thread": "prompt-injection",
+        "durationMs": 18.92070000000001
+      },
+      {
+        "pass": 0,
+        "thread": "waiting-on-reply",
+        "durationMs": 18.626600000000053
+      },
+      {
+        "pass": 0,
+        "thread": "metadata-and-duplicates",
+        "durationMs": 19.273799999999937
+      },
+      {
+        "pass": 1,
+        "thread": "recruiter-coordination",
+        "durationMs": 18.307900000000018
+      },
+      {
+        "pass": 1,
+        "thread": "meeting-coordination",
+        "durationMs": 18.270099999999957
+      },
+      {
+        "pass": 1,
+        "thread": "project-status",
+        "durationMs": 18.937400000000025
+      },
+      {
+        "pass": 1,
+        "thread": "customer-escalation",
+        "durationMs": 18.152500000000146
+      },
+      {
+        "pass": 1,
+        "thread": "long-project-history",
+        "durationMs": 19.971500000000106
+      },
+      {
+        "pass": 1,
+        "thread": "ambiguous-deadline",
+        "durationMs": 10.835000000000036
+      },
+      {
+        "pass": 1,
+        "thread": "informational-update",
+        "durationMs": 14.235099999999875
+      },
+      {
+        "pass": 1,
+        "thread": "prompt-injection",
+        "durationMs": 10.588500000000067
+      },
+      {
+        "pass": 1,
+        "thread": "waiting-on-reply",
+        "durationMs": 17.355999999999995
+      },
+      {
+        "pass": 1,
+        "thread": "metadata-and-duplicates",
+        "durationMs": 19.83979999999997
+      },
+      {
+        "pass": 2,
+        "thread": "recruiter-coordination",
+        "durationMs": 9.830600000000004
+      },
+      {
+        "pass": 2,
+        "thread": "meeting-coordination",
+        "durationMs": 16.859199999999873
+      },
+      {
+        "pass": 2,
+        "thread": "project-status",
+        "durationMs": 19.183500000000095
+      },
+      {
+        "pass": 2,
+        "thread": "customer-escalation",
+        "durationMs": 16.980999999999995
+      },
+      {
+        "pass": 2,
+        "thread": "long-project-history",
+        "durationMs": 18.002099999999928
+      },
+      {
+        "pass": 2,
+        "thread": "ambiguous-deadline",
+        "durationMs": 18.982999999999947
+      },
+      {
+        "pass": 2,
+        "thread": "informational-update",
+        "durationMs": 17.795399999999972
+      },
+      {
+        "pass": 2,
+        "thread": "prompt-injection",
+        "durationMs": 18.638100000000122
+      },
+      {
+        "pass": 2,
+        "thread": "waiting-on-reply",
+        "durationMs": 17.414199999999937
+      },
+      {
+        "pass": 2,
+        "thread": "metadata-and-duplicates",
+        "durationMs": 18.250099999999975
+      },
+      {
+        "pass": 3,
+        "thread": "recruiter-coordination",
+        "durationMs": 18.17470000000003
+      },
+      {
+        "pass": 3,
+        "thread": "meeting-coordination",
+        "durationMs": 18.35129999999981
+      },
+      {
+        "pass": 3,
+        "thread": "project-status",
+        "durationMs": 18.70270000000005
+      },
+      {
+        "pass": 3,
+        "thread": "customer-escalation",
+        "durationMs": 17.695699999999988
+      },
+      {
+        "pass": 3,
+        "thread": "long-project-history",
+        "durationMs": 17.98180000000002
+      },
+      {
+        "pass": 3,
+        "thread": "ambiguous-deadline",
+        "durationMs": 18.209100000000035
+      },
+      {
+        "pass": 3,
+        "thread": "informational-update",
+        "durationMs": 17.967799999999897
+      },
+      {
+        "pass": 3,
+        "thread": "prompt-injection",
+        "durationMs": 17.524099999999862
+      },
+      {
+        "pass": 3,
+        "thread": "waiting-on-reply",
+        "durationMs": 18.664999999999964
+      },
+      {
+        "pass": 3,
+        "thread": "metadata-and-duplicates",
+        "durationMs": 17.62819999999988
+      }
+    ]
+  },
+  "recordedReply": [
+    {
+      "firstDeltaMs": 10.986499999999978,
+      "terminalMs": 93.6748
+    },
+    {
+      "firstDeltaMs": 1.2292999999999665,
+      "terminalMs": 81.7188000000001
+    },
+    {
+      "firstDeltaMs": 10.345799999999826,
+      "terminalMs": 92.52909999999997
+    }
+  ],
+  "corpus": [
+    {
+      "threadId": "recruiter-coordination",
+      "version": "922244d0fcf6f333a209761bbe846bba6ab427abe27e69060f3ffa5a334fe099",
+      "messageCount": 2,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "meeting-coordination",
+      "version": "e1480f5ae1078851ef7b2d9f830b46ea55105adb7295e09515e7dbc0709973bf",
+      "messageCount": 3,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "project-status",
+      "version": "950092f162092c74aed123fad4a208db960f0d98404298e271e380f5fcadde62",
+      "messageCount": 3,
+      "coverage": "full",
+      "evidenceSpans": 3,
+      "errors": []
+    },
+    {
+      "threadId": "customer-escalation",
+      "version": "8c5bf7bb86a048b590ec984b9a7c0c74334edeaf6591504c8b76040eba81eebd",
+      "messageCount": 3,
+      "coverage": "full",
+      "evidenceSpans": 4,
+      "errors": []
+    },
+    {
+      "threadId": "long-project-history",
+      "version": "39b593228e9db3373637ead3fc6df42b379bd36d268db8419db7da7ad4900074",
+      "messageCount": 44,
+      "coverage": "partial",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "ambiguous-deadline",
+      "version": "b08a75fc5a7f3b8f1e49ed8bcf23672153bd727a74fdbc256ddc30344b0671e0",
+      "messageCount": 2,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "informational-update",
+      "version": "f64c0d9ff51923114f520378f35a701c0b229181eed1a650605a1986cac29368",
+      "messageCount": 1,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "prompt-injection",
+      "version": "914967a8764d4fd5f47ec88be87cc6374895ded7381581744634a41f24660109",
+      "messageCount": 1,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "waiting-on-reply",
+      "version": "71571c6f7dc46a0e86638ed2511460f03e9b3d090df585e9d80f72234039ecce",
+      "messageCount": 1,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    },
+    {
+      "threadId": "metadata-and-duplicates",
+      "version": "5bb64130c2f9685d0ed1178faed5b3bc3274d1ae194fe814f5f02a4047f0184e",
+      "messageCount": 3,
+      "coverage": "full",
+      "evidenceSpans": 1,
+      "errors": []
+    },
+    {
+      "threadId": "waiting-on-reply",
+      "version": "c08567f02fa0896561aea6a2cb54c8199b24319664d7b3fd78303f700fe2c50f",
+      "messageCount": 2,
+      "coverage": "full",
+      "evidenceSpans": 2,
+      "errors": []
+    }
+  ],
+  "sourceSha256": {
+    "src/api.ts": "c4f28b69a7e74117a3859492f504d4e78ce37c355f72f2925d0fee63a41f6c8d",
+    "src/app.tsx": "ff38db5d0bfaa57bcb2ceae1d944029eb969aae7c501e041187ab3296f9bc414",
+    "src/contracts.ts": "74bd00d82eb062cd0cd391db5d6f76a6d68c1b08d1df84d0227ae0c695a5bb2b",
+    "src/domain.ts": "a15c7c742c0d9ee0df5e7ea70bbf16068f7f02b3022245208d01977dafc79aba",
+    "src/error-boundary.tsx": "27f8e4d07e60a9eb7f2399b399062f71a5169ff1770344407dc140f5d9ff3e2e",
+    "src/fixtures.ts": "ede6ecdd858eb75fb9f5a8d2668a2cb73d76d4516959cfbfdbe587b30ec07808",
+    "src/local-state.ts": "aafc1725fd022d93bec3e3b54527a0fbfed31388ba7b3ea6ef10d0c5de50b0b3",
+    "src/main.tsx": "9ca64516fabeffdd7d9cf2d4faaa73e375f17ac0d142921d3f335ec3cd82fff2",
+    "src/offline.ts": "9c06e00e2a953a2c4af3ca32f64044d13eb00f1bc649630510d870244a5f92d0",
+    "src/provider.ts": "f8d2eb30151d04de3b93b0bf0b1cb429f1386aaf7515e03ff229d869570cda28",
+    "src/recorded-bundle.json": "6437eb7b1291a1dbb12426615436774b8ebb81f180e057be18275c5392019f65",
+    "src/server.ts": "1982255a076ada8f1036402255da12d085937a1bc7078c009d3d62a2da6ba4ca",
+    "src/store.ts": "0812176c546bc2804cce36eb0de05010628f5c13878c5fa9d4b0a176c5751402",
+    "src/styles.css": "8e4b2d02c431c9a0ec9de0036cc87484f90e9a872692af7e9adb7de5bb992195",
+    "src/transport.ts": "fdd44b3ecc8b5f1cc3b6b79078f408a503a4dac12d879daba1ab24d9b02c06a6",
+    "src/viewer.ts": "39ab585d47caa4133aa44077e305b55fea30fb98ea15a2ebfc17d02b7066cffc",
+    "src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+    "src/workflow.ts": "f120ca8ed4b3c72cdc5b6b9d0af5d09312c596a1e73030bbc6a96d8a1111c1fa",
+    "scripts/benchmark.mjs": "7fc13b58d82a367bb5c63673789b65028148245850085cf5f044bc4d2da6dff9",
+    "scripts/bundle-fixtures.ts": "7d8b7d1cbc903aebf543684099841426d31283499c4a6dff7c6b58bc590874b0",
+    "scripts/smoke-built.mjs": "bc638656769c8efd4bc5aa27d210b3b47d8d94ffe554e66f5154e6fe5ad10e37",
+    "scripts/validate-fixtures.ts": "81d02b44319467acc1157031091305ca4d31d6965862c9229ffa27dcaa360966",
+    "tests/domain.test.ts": "59eef4e4b5b69c805308f7770af22fa2440bec2660bd8dbd784c6f7fd9d009b4",
+    "tests/offline.test.ts": "f47a4b9bb9a2a72d21ddb5feecac53e5dec695a33d2f10a1d7360cd93cc1348e",
+    "tests/regressions.test.ts": "dcdbfd8d33312fa23830b979d87e160f197089a1bf36efe99047f88f3d03303e",
+    "tests/storage.test.ts": "48898b5dc9215335e53367c1ebdd20a2d54ae5be4802660350a1379ac12b96e3",
+    "tests/ui.test.tsx": "3f117be294dcaf48dbd557fe04b0e087a05d0f823697f6b77d411147aa541e45"
+  }
+}

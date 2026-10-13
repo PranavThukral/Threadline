@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "fastify",
+  "buildCommand": "pnpm build",
+  "functions": {
+    "src/server.ts": {
+      "includeFiles": "dist/web/**",
+      "maxDuration": 120
+    }
+  }
+}

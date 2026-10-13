@@ -1,0 +1,11 @@
+node_modules
+.relocation-backup
+dist
+data
+.env
+.env.*
+.git
+sources
+deliverables
+coverage
+*.log

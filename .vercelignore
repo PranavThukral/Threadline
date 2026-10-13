@@ -1,0 +1,15 @@
+node_modules/
+.git/
+.vercel/
+.relocation-backup/
+data/
+dist/
+sources/
+deliverables/
+coverage/
+.env
+.env.*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log

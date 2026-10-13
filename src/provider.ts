@@ -42,7 +42,7 @@ export function sourceEnvelope(thread: Thread) {
     },
   };
 }
-export type ProviderUsage = { input_tokens: number; output_tokens: number };
+export type ProviderUsage = { input_tokens: number; output_tokens: number; cost?: number };
 export async function liveAnalysis(client: OpenAI, thread: Thread, signal: AbortSignal) {
   const source = sourceEnvelope(thread);
   const response = await client.responses.create(

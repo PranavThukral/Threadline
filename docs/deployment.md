@@ -14,7 +14,9 @@ The provisioned Turso database uses the Starter plan listed at $0/month, in iad1
 | ------------------------------------- | -------------------------------------------------------------------- |
 | TURSO_DATABASE_URL / TURSO_AUTH_TOKEN | Server-only database connection, supplied by the Vercel integration  |
 | OPENROUTER_API_KEY                    | Server-only Secret in production and preview                         |
-| AI_PROVIDER                           | openrouter                                                           |
+| XAI_API_KEY                           | Server-only Secret in production and preview                         |
+| XAI_MODEL                             | grok-4.3; other model IDs are rejected                               |
+| AI_PROVIDER                           | xai; optional openrouter selected explicitly                         |
 | LIVE_AI_ENABLED                       | true after verification                                              |
 | OPENROUTER_MODEL                      | nvidia/nemotron-3.5-lightning:free                                   |
 | APP_ORIGIN                            | Optional explicit HTTPS origin; default uses Vercel's production URL |
@@ -32,7 +34,9 @@ Deploy a preview, verify it, then deploy production. Test anonymous access to th
 
 Each browser can make 12 provider attempts per rolling hour and 24 per UTC day. The deployment admits at most 40 OpenRouter attempts per UTC day. Cached/recorded reads do not consume these allowances. Limit responses provide Retry-After and distinguish the browser limit from the shared daily allowance. Failed provider calls still count as attempts.
 
-OpenRouter separately limits the free account across every application using the key; local previews and manual probes also count. App limits cannot reset a provider's allowance. Every request uses the exact free model and zero prompt/completion/request price ceilings, with no paid fallback. See [OpenRouter pricing](https://openrouter.ai/pricing/).
+The primary xAI provider admits at most 250 attempts per day, subject to tighter $0.25/day and $4 total application budgets. Paid local previews require the same Turso database as production. The total budget includes a permanent archive of pruned charges. Settled usage uses Grok 4.3's verified $1.25/M input, $0.20/M cached-input and $2.50/M output rates. Reasoning, priority processing, response storage, tools and automatic retries/model fallback are disabled. See [xAI pricing](https://docs.x.ai/developers/models/grok-4.3). These caps do not control other applications using the same API account.
+
+Optional OpenRouter separately limits the free account across every application using the key; local previews and manual probes also count. App limits cannot reset a provider's allowance. Its requests use the exact free model and zero prompt/completion/request price ceilings, with no paid fallback. See [OpenRouter pricing](https://openrouter.ai/pricing/).
 
 Before the first hosted release, `pnpm exec tsx scripts/import-local-allowance.ts` imports known local provider attempts into Turso without copying session secrets or mail. It is idempotent and retains the seven-day ledger. Development probes after migration still consume the provider account's allowance even when made outside the hosted app.
 

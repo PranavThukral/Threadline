@@ -42,9 +42,21 @@ export class RuntimeStore {
     this.db.prepare("DELETE FROM runs WHERE started < ? AND status != 'running'").run(cutoff);
     this.db.prepare('DELETE FROM cache WHERE created < ?').run(cutoff);
     this.db.prepare('DELETE FROM metrics WHERE created < ?').run(Date.now() - 86400000);
-    this.db
-      .prepare('DELETE FROM costs WHERE day < ?')
-      .run(new Date(cutoff).toISOString().slice(0, 10));
+    const day = new Date(cutoff).toISOString().slice(0, 10);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec("INSERT OR IGNORE INTO meta VALUES ('spend_archive','0')");
+      this.db
+        .prepare(
+          "UPDATE meta SET value=CAST(value AS REAL)+(SELECT COALESCE(sum(amount),0) FROM costs WHERE day<?) WHERE key='spend_archive'",
+        )
+        .run(day);
+      this.db.prepare('DELETE FROM costs WHERE day < ?').run(day);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
   createSession(id: string, expires: number) {
     this.prune();
@@ -107,6 +119,8 @@ export class RuntimeStore {
     maxCost: number,
     providerAttempt = run.mode === 'live' && maxCost > 0,
     dailyProviderLimit = 250,
+    dailySpendLimit = 5,
+    totalSpendLimit = Number.POSITIVE_INFINITY,
   ) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -140,8 +154,19 @@ export class RuntimeStore {
           error = 'SESSION_HOURLY_ATTEMPTS';
         if (count('SELECT count(*) AS n FROM costs WHERE day=?', day) >= dailyProviderLimit)
           error = 'GLOBAL_ATTEMPTS';
-        if (count('SELECT COALESCE(sum(amount),0) AS n FROM costs WHERE day=?', day) + maxCost > 5)
+        if (
+          count('SELECT COALESCE(sum(amount),0) AS n FROM costs WHERE day=?', day) + maxCost >
+          dailySpendLimit
+        )
           error = 'GLOBAL_BUDGET';
+        if (
+          count(
+            "SELECT COALESCE((SELECT sum(amount) FROM costs),0)+COALESCE((SELECT CAST(value AS REAL) FROM meta WHERE key='spend_archive'),0) AS n",
+          ) +
+            maxCost >
+          totalSpendLimit
+        )
+          error = 'GLOBAL_TOTAL_BUDGET';
       }
       if (count('SELECT count(*) AS n FROM runs WHERE session=?', run.session) >= 500)
         error = 'SESSION_RUN_LIMIT';

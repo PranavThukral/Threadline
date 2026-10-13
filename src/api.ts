@@ -1,6 +1,19 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import OpenAI from 'openai';
+import type { LanguageModel } from 'ai';
+import {
+  createXaiModel,
+  xaiAnalysis,
+  xaiReply,
+  xaiReservation,
+  XAI_MODEL,
+  XAI_PROMPT_VERSION,
+  XAI_INPUT_RATE,
+  XAI_OUTPUT_RATE,
+  XAI_DAILY_BUDGET,
+  XAI_TOTAL_BUDGET,
+} from './xai-provider.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -49,6 +62,7 @@ type AppOptions = {
   store?: RuntimeStore | TursoStore;
   client?: OpenAI;
   openrouter?: RouterClient;
+  xai?: LanguageModel;
   live?: boolean;
   inputRate?: number;
   outputRate?: number;
@@ -64,6 +78,14 @@ export async function createApp(options: AppOptions = {}) {
   });
   if (process.env.VERCEL && !options.store && !process.env.TURSO_DATABASE_URL)
     throw new Error('TURSO_NOT_CONFIGURED');
+  if (
+    process.env.AI_PROVIDER === 'xai' &&
+    process.env.LIVE_AI_ENABLED === 'true' &&
+    process.env.XAI_API_KEY &&
+    !options.store &&
+    !process.env.TURSO_DATABASE_URL
+  )
+    throw new Error('XAI_SHARED_BUDGET_REQUIRED');
   const store =
     options.store ??
     (process.env.TURSO_DATABASE_URL
@@ -85,23 +107,31 @@ export async function createApp(options: AppOptions = {}) {
   const secret = process.env.SESSION_SECRET?.trim() || (await store.secret());
   const client =
     options.client ??
-    (process.env.AI_PROVIDER !== 'openrouter' && process.env.OPENAI_API_KEY
+    (process.env.AI_PROVIDER !== 'openrouter' &&
+    process.env.AI_PROVIDER !== 'xai' &&
+    process.env.OPENAI_API_KEY
       ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 45000 })
       : null);
-  const router = options.openrouter ?? (options.client ? null : await createRouterClient());
-  const configuredModel = router ? routerModel() : model();
-  const inputRate = router
-    ? 0
-    : (options.inputRate ?? Number(process.env.OPENAI_INPUT_USD_PER_MILLION));
-  const outputRate = router
-    ? 0
-    : (options.outputRate ?? Number(process.env.OPENAI_OUTPUT_USD_PER_MILLION));
+  const xai = options.xai ?? (options.client || options.openrouter ? null : createXaiModel());
+  const router = options.openrouter ?? (options.client || xai ? null : await createRouterClient());
+  const configuredModel = xai ? XAI_MODEL : router ? routerModel() : model();
+  const promptVersion = xai ? XAI_PROMPT_VERSION : router ? ROUTER_PROMPT_VERSION : PROMPT_VERSION;
+  const inputRate = xai
+    ? XAI_INPUT_RATE
+    : router
+      ? 0
+      : (options.inputRate ?? Number(process.env.OPENAI_INPUT_USD_PER_MILLION));
+  const outputRate = xai
+    ? XAI_OUTPUT_RATE
+    : router
+      ? 0
+      : (options.outputRate ?? Number(process.env.OPENAI_OUTPUT_USD_PER_MILLION));
   const pricingReady = [inputRate, outputRate].every(
     (rate) => Number.isFinite(rate) && rate > 0 && rate <= 1000,
   );
   const liveEnabled =
     (options.live ?? process.env.LIVE_AI_ENABLED === 'true') &&
-    Boolean(router || (client && pricingReady));
+    Boolean(router || ((xai || client) && pricingReady));
   const publicDir = join(process.cwd(), 'dist', 'web');
   const active = new Map<string, AbortController>();
   const pendingAnalyses = new Set<string>();
@@ -274,12 +304,17 @@ export async function createApp(options: AppOptions = {}) {
     scenarioClockBase: '2026-10-05T10:00:00-04:00',
     userTimezoneDefault: 'America/New_York',
     modelSnapshot: configuredModel,
-    provider: router ? 'openrouter' : 'openai',
+    provider: xai ? 'xai' : router ? 'openrouter' : 'openai',
     liveEnabled,
     disabledReason: liveEnabled
       ? null
-      : 'Live AI is unavailable. Check the server key and free model availability; example mails remain usable.',
-    limits: { maxMessages: 80, maxLiveAttempts: 24, maxLiveHourlyAttempts: 12 },
+      : 'Live AI is unavailable. Check the server key and model availability; example mails remain usable.',
+    limits: {
+      maxMessages: 80,
+      maxLiveAttempts: 24,
+      maxLiveHourlyAttempts: 12,
+      ...(xai ? { dailyBudgetUSD: XAI_DAILY_BUDGET, totalBudgetUSD: XAI_TOTAL_BUDGET } : {}),
+    },
     fixtureManifestVersion: '2026-10-06.2',
   }));
   const currentThread = async (request: FastifyRequest, thread: (typeof threads)[number]) => {
@@ -350,7 +385,7 @@ export async function createApp(options: AppOptions = {}) {
           thread.version,
           'live',
           SCHEMA_VERSION,
-          router ? ROUTER_PROMPT_VERSION : PROMPT_VERSION,
+          promptVersion,
           'normalizer.v1',
           configuredModel,
         ].join(':'),
@@ -646,7 +681,10 @@ export async function createApp(options: AppOptions = {}) {
       // upward to micro-dollars. Provider requests are separately capped at 96 KiB.
       maxCost = router
         ? 0
-        : Math.ceil(100000 * inputRate + (kind === 'reply' ? 500 : MAX_OUTPUT) * outputRate) / 1e6;
+        : xai
+          ? xaiReservation(thread, replyBody?.intent, replyBody?.facts)
+          : Math.ceil(100000 * inputRate + (kind === 'reply' ? 500 : MAX_OUTPUT) * outputRate) /
+            1e6;
     }
     if (active.size >= 30)
       return error(
@@ -672,6 +710,8 @@ export async function createApp(options: AppOptions = {}) {
       maxCost,
       mode === 'live' && !cached,
       router ? 40 : 250,
+      xai ? XAI_DAILY_BUDGET : 5,
+      xai ? XAI_TOTAL_BUDGET : Number.POSITIVE_INFINITY,
     );
     if (admission) {
       const retrySeconds = await store.retryAfter(admission, current.id);
@@ -686,8 +726,10 @@ export async function createApp(options: AppOptions = {}) {
             : admission === 'GLOBAL_ATTEMPTS'
               ? `The shared free-model allowance is used for today. It resets in about ${retryMinutes} minutes.`
               : admission === 'GLOBAL_BUDGET'
-                ? `The shared spending ceiling is reached for today. It resets in about ${retryMinutes} minutes.`
-                : 'This browser has reached its session request limit.';
+                ? `The shared ${xai ? '$0.25 AI' : ''} spending ceiling is reached for today. It resets in about ${retryMinutes} minutes.`
+                : admission === 'GLOBAL_TOTAL_BUDGET'
+                  ? 'This demo has reached its $4 total AI budget. The owner needs to review the budget before more live requests.'
+                  : 'This browser has reached its session request limit.';
       return error(
         reply,
         request,
@@ -696,7 +738,7 @@ export async function createApp(options: AppOptions = {}) {
           ? 'RATE_LIMITED'
           : 'BUDGET_EXHAUSTED',
         message,
-        admission !== 'SESSION_RUN_LIMIT',
+        !['SESSION_RUN_LIMIT', 'GLOBAL_TOTAL_BUDGET'].includes(admission),
       );
     }
     const controller = new AbortController();
@@ -715,7 +757,7 @@ export async function createApp(options: AppOptions = {}) {
         timedOut = true;
         controller.abort();
       },
-      router ? 90000 : 45000,
+      router || xai ? 90000 : 45000,
     );
     let finished = false,
       sequence = 0,
@@ -751,7 +793,9 @@ export async function createApp(options: AppOptions = {}) {
         usage.output_tokens >= 0
       )
         actualCost =
-          Math.ceil(usage.input_tokens * inputRate + usage.output_tokens * outputRate) / 1e6;
+          xai && Number.isFinite(usage.cost) && usage.cost! >= 0
+            ? usage.cost
+            : Math.ceil(usage.input_tokens * inputRate + usage.output_tokens * outputRate) / 1e6;
     };
     try {
       await emit('run.started', {
@@ -767,7 +811,9 @@ export async function createApp(options: AppOptions = {}) {
           (mode === 'live'
             ? router
               ? await routerAnalysis(router, thread, controller.signal)
-              : await liveAnalysis(client!, thread, controller.signal)
+              : xai
+                ? await xaiAnalysis(xai, thread, controller.signal)
+                : await liveAnalysis(client!, thread, controller.signal)
             : recorded(thread));
         if ('usage' in result) charge(result.usage as ProviderUsage | null);
         controller.signal.throwIfAborted();
@@ -801,14 +847,18 @@ export async function createApp(options: AppOptions = {}) {
           facts = replyBody!.facts;
         let text: string;
         if (mode === 'live') {
-          const result = await (router ? routerReply : liveReply)(
-            (router ?? client!) as RouterClient & OpenAI,
-            thread,
-            intent,
-            facts,
-            controller.signal,
-            (delta) => emit('draft.delta', { text: delta }),
-          );
+          const result = xai
+            ? await xaiReply(xai, thread, intent, facts, controller.signal, (delta) =>
+                emit('draft.delta', { text: delta }),
+              )
+            : await (router ? routerReply : liveReply)(
+                (router ?? client!) as RouterClient & OpenAI,
+                thread,
+                intent,
+                facts,
+                controller.signal,
+                (delta) => emit('draft.delta', { text: delta }),
+              );
           text = result.text;
           charge(result.usage);
         } else {
@@ -826,6 +876,8 @@ export async function createApp(options: AppOptions = {}) {
         });
       }
     } catch (caught) {
+      if (caught && typeof caught === 'object' && 'usage' in caught)
+        charge(caught.usage as ProviderUsage | null);
       status = controller.signal.aborted && !timedOut ? 'cancelled' : 'failed';
       const safeCodes = new Set([
         'SOURCE_TOO_LARGE',
@@ -835,6 +887,8 @@ export async function createApp(options: AppOptions = {}) {
         'INVALID_COVERAGE',
         'DRAFT_INCOMPLETE',
         'UNSAFE_DRAFT',
+        'XAI_CREDIT_LIMIT',
+        'INVALID_PROVIDER_USAGE',
       ]);
       errorCode = timedOut
         ? 'PROVIDER_TIMEOUT'
@@ -859,13 +913,15 @@ export async function createApp(options: AppOptions = {}) {
       const failureMessage =
         status === 'cancelled'
           ? 'Generation cancelled.'
-          : errorCode === 'PROVIDER_DAILY_LIMIT'
-            ? `OpenRouter’s free daily allowance is used.${retryMinutes ? ` Live AI resumes in about ${retryMinutes} minutes.` : ' Try again after the daily allowance resets.'} ${retained}`
-            : errorCode === 'PROVIDER_RATE_LIMITED'
-              ? `OpenRouter has temporarily limited free requests. Try again later. ${retained}`
-              : timedOut
-                ? `The free model is taking too long. Try again shortly. ${retained}`
-                : `The model could not return a verified result. Try again shortly. ${retained}`;
+          : errorCode === 'XAI_CREDIT_LIMIT'
+            ? `The xAI account has no available API credit or has reached its account spending limit. ${retained}`
+            : errorCode === 'PROVIDER_DAILY_LIMIT'
+              ? `OpenRouter’s free daily allowance is used.${retryMinutes ? ` Live AI resumes in about ${retryMinutes} minutes.` : ' Try again after the daily allowance resets.'} ${retained}`
+              : errorCode === 'PROVIDER_RATE_LIMITED'
+                ? `${xai ? 'xAI has temporarily limited requests' : 'OpenRouter has temporarily limited free requests'}. Try again later. ${retained}`
+                : timedOut
+                  ? `The model is taking too long. Try again shortly. ${retained}`
+                  : `The model could not return a verified result. Try again shortly. ${retained}`;
       if (!reply.raw.destroyed)
         reply.raw.write(
           `id: ${runId}:${sequence + 1}\nevent: ${status === 'cancelled' ? 'run.cancelled' : 'run.failed'}\ndata: ${JSON.stringify({ protocolVersion: 1, runId, threadId: thread.id, threadVersion: thread.version, mode, sequence: ++sequence, payload: { code: errorCode, message: failureMessage, retryAt, retryable: status !== 'cancelled' } })}\n\n`,

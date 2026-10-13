@@ -126,8 +126,8 @@ export function MailComposer({
             </label>
           </fieldset>
           <p className="privacy-note">
-            Use example content. Live requests go to OpenRouter/NVIDIA, which log prompts. Avoid
-            private information. Added mails expire after 24 hours; reset removes them.
+            Use example content. Live requests go to the configured AI provider. Avoid private
+            information. Added mails expire after 24 hours; reset removes them.
           </p>
           {error && (
             <p className="inline-error" role="alert">

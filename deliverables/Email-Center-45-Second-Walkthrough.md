@@ -4,7 +4,7 @@ Read at a conversational pace, about 150 words per minute. The spoken script is 
 
 ## Spoken script
 
-“Threadline helps you turn an email into a clear, verifiable next step. I built it with React, TypeScript, Vite and Fastify, using Turso SQLite and a streamed, free Nemotron model through OpenRouter.
+“Threadline helps you turn an email into a clear, verifiable next step. I built it with React, TypeScript, Vite and Fastify, using Turso SQLite and streamed Grok through the Vercel AI SDK.
 
 I’ll open Maya’s scheduling mail. The overview identifies what needs my reply; clicking the evidence reveals the exact source.
 
@@ -22,4 +22,4 @@ This is a demo workspace: it doesn’t connect to or send email. The goal is pra
 | 34–39 seconds | Add “Wednesday at 11 am ET works for me.” to the notes. | The old draft is marked as needing an update; it cannot be reviewed or copied as current. |
 | 39–45 seconds | Finish on the reply editor and review controls. | Close on the assumptions and human control. Regenerate and complete review after the recording if needed. |
 
-Prepare Maya’s mail and the reply panel before recording. Leave time for the actual live response; the click timings are rehearsal targets, not a provider latency guarantee. This walkthrough describes the Vercel/Turso deployment; local development uses native SQLite.
+Prepare Maya’s mail and the reply panel before recording. Leave time for the actual live response; the click timings are rehearsal targets, not a provider latency guarantee. This walkthrough describes the Vercel/Turso deployment. Paid local previews share the same Turso budget; unfunded local demos can use native SQLite.

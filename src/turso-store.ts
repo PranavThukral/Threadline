@@ -79,6 +79,11 @@ export class TursoStore {
         { sql: "DELETE FROM runs WHERE started<? AND status!='running'", args: [cutoff] },
         { sql: 'DELETE FROM cache WHERE created<?', args: [cutoff] },
         { sql: 'DELETE FROM metrics WHERE created<?', args: [now - 86400000] },
+        "INSERT OR IGNORE INTO meta VALUES ('spend_archive','0')",
+        {
+          sql: "UPDATE meta SET value=CAST(value AS REAL)+(SELECT COALESCE(sum(amount),0) FROM costs WHERE day<?) WHERE key='spend_archive'",
+          args: [new Date(cutoff).toISOString().slice(0, 10)],
+        },
         {
           sql: 'DELETE FROM costs WHERE day<?',
           args: [new Date(cutoff).toISOString().slice(0, 10)],
@@ -148,6 +153,8 @@ export class TursoStore {
     maxCost: number,
     providerAttempt = run.mode === 'live' && maxCost > 0,
     dailyProviderLimit = 250,
+    dailySpendLimit = 5,
+    totalSpendLimit = Number.POSITIVE_INFINITY,
   ) {
     const tx = await this.db.transaction('write'),
       now = Date.now(),
@@ -165,6 +172,7 @@ export class TursoStore {
         hourly: number;
         globalDaily: number;
         spend: number;
+        totalSpend: number;
         retained: number;
       }>(
         `SELECT
@@ -175,6 +183,7 @@ export class TursoStore {
         (SELECT count(*) FROM runs JOIN costs ON costs.run=runs.id WHERE costs.session=? AND runs.started>?) AS hourly,
         (SELECT count(*) FROM costs WHERE day=?) AS globalDaily,
         (SELECT COALESCE(sum(amount),0) FROM costs WHERE day=?) AS spend,
+        COALESCE((SELECT sum(amount) FROM costs),0)+COALESCE((SELECT CAST(value AS REAL) FROM meta WHERE key='spend_archive'),0) AS totalSpend,
         (SELECT count(*) FROM runs WHERE session=?) AS retained`,
         [
           run.session,
@@ -199,7 +208,8 @@ export class TursoStore {
         if (Number(counts!.daily) >= 24) error = 'SESSION_ATTEMPTS';
         if (Number(counts!.hourly) >= 12) error = 'SESSION_HOURLY_ATTEMPTS';
         if (Number(counts!.globalDaily) >= dailyProviderLimit) error = 'GLOBAL_ATTEMPTS';
-        if (Number(counts!.spend) + maxCost > 5) error = 'GLOBAL_BUDGET';
+        if (Number(counts!.spend) + maxCost > dailySpendLimit) error = 'GLOBAL_BUDGET';
+        if (Number(counts!.totalSpend) + maxCost > totalSpendLimit) error = 'GLOBAL_TOTAL_BUDGET';
       }
       if (Number(counts!.retained) >= 500) error = 'SESSION_RUN_LIMIT';
       if (error) {

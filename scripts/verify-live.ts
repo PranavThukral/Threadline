@@ -1,10 +1,11 @@
-// Manual check only: makes two real requests to the configured free model.
-// Run against the compiled, locally running server; never include credentials here.
+// Manual check only: makes two real model requests through the app's budget guard.
+// xAI requests are billed at the configured rates. Never include credentials here.
 import { randomUUID } from 'node:crypto';
 import { StreamDecoder, type StreamEvent } from '../src/transport.js';
 import { validateExtraction, type Thread } from '../src/domain.js';
 import { extractionSchema, evidenceSchema } from '../src/contracts.js';
 import { FREE_MODEL } from '../src/openrouter-provider.js';
+import { XAI_MODEL } from '../src/xai-provider.js';
 import { lintDraft } from '../src/workflow.js';
 
 const base = process.argv[2] ?? 'http://localhost:3000';
@@ -13,7 +14,10 @@ const assert = (condition: unknown, message: string) => {
 };
 try {
   const bootstrap = await (await fetch(`${base}/api/v1/bootstrap`)).json();
-  assert(bootstrap.liveEnabled && bootstrap.modelSnapshot === FREE_MODEL, 'LIVE_NOT_READY');
+  assert(
+    bootstrap.liveEnabled && [FREE_MODEL, XAI_MODEL].includes(bootstrap.modelSnapshot),
+    'LIVE_NOT_READY',
+  );
   const initial = await fetch(`${base}/api/v1/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: base },

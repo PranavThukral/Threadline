@@ -17,6 +17,7 @@
     "fixtures:bundle": "tsx scripts/bundle-fixtures.ts && prettier --write src/recorded-bundle.json"
   },
   "dependencies": {
+    "@ai-sdk/xai": "^5.0.21",
     "@fastify/cors": "^11.0.2",
     "@fastify/static": "^10.1.5",
     "@fontsource/inter": "^5.3.0",
@@ -24,6 +25,7 @@
     "@libsql/client": "^0.18.0",
     "@libsql/core": "0.18.0",
     "@openrouter/sdk": "^1.4.25",
+    "ai": "^7.0.138",
     "eventsource-parser": "^3.0.6",
     "fastify": "^5.4.0",
     "lucide-react": "^0.544.0",

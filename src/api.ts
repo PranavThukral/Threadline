@@ -1,6 +1,5 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
 import OpenAI from 'openai';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,6 +53,7 @@ type AppOptions = {
   outputRate?: number;
   origin?: string;
   logger?: boolean;
+  serveStatic?: boolean;
 };
 export async function createApp(options: AppOptions = {}) {
   const app = Fastify({
@@ -123,8 +123,10 @@ export async function createApp(options: AppOptions = {}) {
   cleanup.unref();
   const requestWindows = new Map<string, { started: number; count: number }>();
   await app.register(cors, { origin: [...allowed], credentials: true });
-  if (existsSync(publicDir))
+  if (options.serveStatic !== false && existsSync(publicDir)) {
+    const { default: fastifyStatic } = await import('@fastify/static');
     await app.register(fastifyStatic, { root: publicDir, wildcard: false });
+  }
   const error = (
     reply: FastifyReply,
     request: FastifyRequest,

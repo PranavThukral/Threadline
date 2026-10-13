@@ -2,7 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { FastifyInstance } from 'fastify';
 import { createApp } from '../src/api.js';
 
-export function createHandler(factory: () => Promise<FastifyInstance> = () => createApp()) {
+export function createHandler(
+  factory: () => Promise<FastifyInstance> = () => createApp({ serveStatic: false }),
+) {
   let startup: Promise<FastifyInstance> | undefined;
   return async function handler(request: IncomingMessage, response: ServerResponse) {
     try {

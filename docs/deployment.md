@@ -6,7 +6,7 @@ The app supports local native SQLite and shared Turso SQLite for Vercel. Node 24
 
 The linked project is `threadline` in `pranavthukralpt-9138s-projects`. Its Git repository is [PranavThukral/Threadline](https://github.com/PranavThukral/Threadline).
 
-`vercel.json` selects Fastify, builds the client, includes its static assets in the function, and allows a 120-second function duration. Source entrypoint `src/server.ts` is detected by Vercel's Fastify integration. Hosted startup requires Turso and fails explicitly if its database configuration is absent; it never falls back to a temporary local database.
+`vercel.json` publishes `dist/web` through Vercel's static delivery and routes API/readiness requests to the Node function in `api/index.ts`, with a 120-second duration. The adapter reuses a warm Fastify app and waits until the SSE response ends or disconnects. Hosted startup requires Turso and fails explicitly if its database configuration is absent; it never falls back to a temporary local database. Document and asset security headers are configured at the hosting layer.
 
 The provisioned Turso database uses the Starter plan listed at $0/month, in iad1. Shared write transactions enforce provider admission across instances. Sessions, fixture caches, run metadata and attempt counts survive cold starts. Added example mail is scoped to its session and expires after at most 24 hours; its overview cache expires after one hour. Reset removes both. Reply notes and drafts remain in browser tab memory and are not stored in the database.
 

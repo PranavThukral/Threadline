@@ -28,6 +28,7 @@ const visit = (path: string) => {
   if (secrets.some((secret) => data.includes(Buffer.from(secret)))) leaks++;
 };
 for (const path of [
+  'api',
   'src',
   'tests',
   'scripts',

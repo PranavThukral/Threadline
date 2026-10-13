@@ -73,8 +73,8 @@ export async function createApp(options: AppOptions = {}) {
   const origin =
     options.origin ??
     process.env.APP_ORIGIN ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    ((process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL)
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL}`
       : 'http://localhost:3000');
   const allowed = new Set([
     origin,

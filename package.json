@@ -9,7 +9,7 @@
     "start": "node dist/api/src/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "format:check": "prettier --check index.html package.json *.config.js src scripts tests docs README.md",
+    "format:check": "prettier --check index.html package.json vercel.json *.config.js api src scripts tests docs README.md",
     "test": "vitest run",
     "fixtures:validate": "tsx scripts/validate-fixtures.ts",
     "smoke:built": "node scripts/smoke-built.mjs",

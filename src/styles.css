@@ -1183,6 +1183,22 @@ textarea {
   gap: 12px;
   margin-top: 10px;
 }
+.previous-draft {
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.previous-draft summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.previous-draft p {
+  white-space: pre-wrap;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 6px;
+  line-height: 1.7;
+}
 .reply-footer > span {
   font-size: 10px;
   color: #687e9e;

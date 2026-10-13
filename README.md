@@ -1,5 +1,7 @@
 # Threadline
 
+**Live demo:** https://threadline-five-rust.vercel.app
+
 An email action workbench for inspecting requests, checking their source, and deciding the next step. A deep-ink-and-jade workspace presents the inbox, original mail, actionable overview and reviewed reply. Ten example scenarios and one appended-reply scenario run without an API key. New mail accepts your own incoming message; Fetch overview and reply generation use the configured live model. Current notes override earlier availability, and changed drafting inputs require an update before review/copy. The application does not send mail or connect to an inbox.
 
 ## Run
@@ -21,7 +23,7 @@ Open http://localhost:3000. For development, `pnpm dev` runs the API and Vite to
 3. Long project history and prompt injection: inspect coverage warnings and the source text. Review [the employer walkthrough](docs/demo-script.md).
 4. New mail: enter an example incoming message. Inspect its live overview, supply facts for an answer, generate, review, and copy. The guide is optional and stays dismissed after closing. Populated overview sections appear before disabled empty sections.
 
-The inbox starts with three unread incoming mails sorted first, using blue dots/bars and bold text. Opening one marks its source version read and persists that state. Read mails use normal-weight text. Mail previews and headers expand the full paragraph-based message; source inspection expands and highlights it. Inter body text and Krub headings are self-hosted. The right panel has one “Next Step” heading without horizontal divider bars. Failed Fetch stays visible with an explicit retry.
+The inbox starts with three unread incoming mails sorted first, using blue dots/bars and bold text. Opening one marks its source version read and persists that state. Read mails use normal-weight text. Mail previews and headers expand the full paragraph-based message; source inspection expands and highlights it. Inter body text and Krub headings are self-hosted. The right panel has one “Next Step” heading without horizontal divider bars. Failed Fetch stays visible with an explicit retry. Draft reply opens the notes composer without spending a model request. Generate from notes is the primary action; changing notes moves the previous draft out of the active editor. Provider failures preserve the notes and never generate a default replacement. Reconnecting live AI also preserves the notes.
 
 ## Verify
 
@@ -45,8 +47,8 @@ React 19, TypeScript, Vite, plain CSS and Lucide; Fastify 5; strict Zod 4 contra
 
 The build uses separate client and server directories. Native SQLite requires one server instance with a persistent volume; Vercel uses shared database transactions and does not rely on a local file. Cached reads do not consume live requests. Each visit allows 12 provider attempts per hour and 24 per day, with a shared 40-attempt daily ceiling and clear reset times. API outages fall back to the bundled example corpus when frontend assets are available. There is no service worker guaranteeing a new offline page load.
 
-[Current reply-quality and palette update](deliverables/Email-Center-Reply-Quality-and-Color-Update.md) supersedes the reply/palette descriptions in the [previous unread and latency update](deliverables/Email-Center-Read-State-and-Latency-Update.md). The original specification and audits remain historical references. Broad model-quality evaluation and hosted/container verification remain outstanding.
+[Current reply-quality and palette update](deliverables/Email-Center-Reply-Quality-and-Color-Update.md) supersedes the reply/palette descriptions in the [previous unread and latency update](deliverables/Email-Center-Read-State-and-Latency-Update.md). The original specification and audits remain historical references. The notes-first composer and failure/reconnection flow pass 79 automated tests. On 2026-10-13 the hosted API verified added mail → live overview → streamed reply using current facts, SQLite cache reuse, cross-session isolation, reset and settled runs. That sampled reply completed in 791 ms with a first delta at 379 ms; the overview took 11.9 s. These are observations, not latency guarantees. Fresh rendered-browser review and a broad model-quality benchmark remain outstanding.
 
-Manual live checks make real free-model requests and are deliberately excluded from automated tests: `pnpm exec tsx scripts/probe-openrouter.ts` checks grounding and provider-reported usage; `pnpm exec tsx scripts/verify-live.ts` checks added mail → live overview → reply using supplied facts against the running local server. Neither prints credentials or raw provider errors.
+Manual live checks make real free-model requests and are deliberately excluded from automated tests: `pnpm exec tsx scripts/probe-openrouter.ts` checks grounding and provider-reported usage; `pnpm exec tsx scripts/verify-live.ts [baseURL]` checks added mail → live overview → reply using supplied facts against the local server or a deployment. Neither prints credentials or raw provider errors. OpenRouter's free allowance applies across free models; daily-limit failures include the provider's reset timestamp when supplied. The application does not bypass that external quota or switch to paid inference.
 
 The [45-second recruiter walkthrough](deliverables/Email-Center-45-Second-Walkthrough.md) includes a spoken script, click sequence and expected results. `pnpm exec tsx scripts/verify-shared-store.ts` checks the provisioned Turso database across separate connections without a model call.

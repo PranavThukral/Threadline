@@ -104,13 +104,12 @@ function App() {
     'summary' | 'actions' | 'questions' | 'dates' | 'decisions' | 'none'
   >('actions');
   const [replyOpen, setReplyOpen] = useState(false);
-  const [replyIntent, setReplyIntent] = useState<'acknowledge' | 'answer' | 'clarify'>(
-    'acknowledge',
-  );
+  const [replyIntent, setReplyIntent] = useState<'acknowledge' | 'answer' | 'clarify'>('answer');
   const [facts, setFacts] = useState('');
   const [draft, setDraft] = useState('');
   const [draftInputKey, setDraftInputKey] = useState<string | null>(null);
   const draftOutdated = Boolean(draft && draftInputKey !== replyInputKey(replyIntent, facts));
+  const needsDraftGeneration = !draft.trim() || draftOutdated;
   const [draftState, setDraftState] = useState<
     'idle' | 'streaming' | 'editable' | 'reviewed' | 'blocked' | 'cancelled'
   >('idle');
@@ -480,6 +479,38 @@ function App() {
     window.addEventListener('threadline-storage-failed', failure);
     return () => window.removeEventListener('threadline-storage-failed', failure);
   }, []);
+
+  const openReply = useCallback(() => {
+    if (!thread || loading) return;
+    setReplyOpen(true);
+    if (!draft) {
+      setReplyIntent('answer');
+      setTimeout(() => factsRef.current?.focus(), 0);
+    } else setTimeout(() => replyRef.current?.focus(), 0);
+  }, [draft, loading, thread]);
+
+  const reconnectLiveAI = async () => {
+    const wasOffline = isOffline();
+    let connected = false;
+    setOffline(false);
+    try {
+      await api('/api/v1/session', { method: 'POST', body: '{}' });
+      const next = await api<Bootstrap>('/api/v1/bootstrap');
+      connected = true;
+      setBootstrap(next);
+      setOfflineMode(false);
+      modeRef.current = next.liveEnabled ? 'live' : 'recorded';
+      setMode(modeRef.current);
+      if (!next.liveEnabled) throw new Error(next.disabledReason ?? 'Live AI is unavailable.');
+      setThreadList((await api<{ threads: ThreadSummary[] }>('/api/v1/threads')).threads);
+      setDraftError(null);
+      setToast('Live AI reconnected. Generate a reply from your notes.');
+    } catch (error) {
+      setOffline(wasOffline && !connected);
+      setOfflineMode(wasOffline && !connected);
+      setDraftError(error instanceof Error ? error.message : 'Live AI could not reconnect.');
+    }
+  };
 
   const startReply = useCallback(
     async (intent: 'acknowledge' | 'answer' | 'clarify' = replyIntent) => {
@@ -929,7 +960,7 @@ function App() {
         id: 'reply',
         label: 'Draft reply',
         shortcut: 'R',
-        action: () => void startReply('acknowledge'),
+        action: openReply,
       },
       {
         id: 'answer',
@@ -992,7 +1023,16 @@ function App() {
         },
       },
     ],
-    [analyzeSelected, mode, resetDemo, saveFollowUp, startReply, scenarioOffset, guideDismissed],
+    [
+      analyzeSelected,
+      mode,
+      resetDemo,
+      saveFollowUp,
+      startReply,
+      openReply,
+      scenarioOffset,
+      guideDismissed,
+    ],
   );
   const filteredCommands = commands
     .filter((command) => command.id !== 'shortcuts' || !guideDismissed)
@@ -1116,7 +1156,7 @@ function App() {
           setReplyOpen(true);
           setTimeout(() => replyRef.current?.focus(), 0);
         } else {
-          void startReply('acknowledge');
+          openReply();
         }
         return;
       }
@@ -1207,6 +1247,7 @@ function App() {
     focusEvidence,
     selectedId,
     startReply,
+    openReply,
     threadList,
   ]);
 
@@ -1315,7 +1356,7 @@ function App() {
       {offlineMode && (
         <div className="offline-banner" role="status">
           You’re offline. Sample mails and saved follow-ups are still available.{' '}
-          <button onClick={() => setBootstrapAttempt((a) => a + 1)}>Reconnect</button>
+          <button onClick={() => void reconnectLiveAI()}>Reconnect</button>
         </div>
       )}
       <main className="workspace" aria-busy={loading}>
@@ -1513,7 +1554,7 @@ function App() {
                     }
                     focused={focusedEvidence === message.id}
                     highlightSpan={focusedEvidence === message.id ? focusedSpan : null}
-                    onReply={() => (draft ? setReplyOpen(true) : void startReply('acknowledge'))}
+                    onReply={openReply}
                     onToggle={() => {
                       setExpandedMessages((current) =>
                         focusedEvidence === message.id || current.includes(message.id)
@@ -1591,7 +1632,9 @@ function App() {
                   {draftOutdated && (
                     <div className="draft-outdated" role="status">
                       <RefreshCcw size={15} />
-                      <span>Your notes or reply type changed. Update this draft to use them.</span>
+                      <span>
+                        Your notes or reply type changed. Generate a new reply to use them.
+                      </span>
                     </div>
                   )}
                   {draftError && (
@@ -1604,7 +1647,7 @@ function App() {
                     ref={replyRef}
                     className={`draft-editor ${draftState === 'streaming' ? 'generating' : ''}`}
                     readOnly={draftState === 'streaming'}
-                    value={draft}
+                    value={draftOutdated ? '' : draft}
                     onChange={(event) => {
                       if (draftState === 'streaming') return;
                       setDraft(event.target.value);
@@ -1620,9 +1663,19 @@ function App() {
                       setDraftError(flags.join(' ') || null);
                       setDraftState(flags.length ? 'blocked' : 'editable');
                     }}
-                    placeholder="Your draft will appear here…"
+                    placeholder={
+                      draftOutdated
+                        ? 'Generate from your current notes, or write your reply here…'
+                        : 'Your draft will appear here…'
+                    }
                     aria-label="Reply draft"
                   />
+                  {draftOutdated && (
+                    <details className="previous-draft">
+                      <summary>View previous draft</summary>
+                      <p>{draft}</p>
+                    </details>
+                  )}
                   {draftState === 'streaming' && (
                     <button className="text-button" onClick={cancelReply}>
                       Cancel generation
@@ -1630,8 +1683,10 @@ function App() {
                   )}
                   {replyIntent === 'answer' && mode === 'recorded' && (
                     <p className="draft-note">
-                      Live AI is unavailable. Edit the draft directly to include your facts, then
-                      review it.
+                      Live AI is unavailable. Your notes will not be replaced with a default reply.
+                      <button className="text-button" onClick={() => void reconnectLiveAI()}>
+                        Reconnect live AI
+                      </button>
                     </p>
                   )}
                   {draftState === 'cancelled' && (
@@ -1649,14 +1704,18 @@ function App() {
                         <>
                           <Check size={14} /> Reviewed · press Mod+Enter to copy
                         </>
-                      ) : draftOutdated ? (
-                        'Previous draft · update needed'
+                      ) : needsDraftGeneration ? (
+                        replyIntent === 'answer' ? (
+                          'Your notes guide the next reply'
+                        ) : (
+                          'Ready to generate'
+                        )
                       ) : (
                         'Review before copying'
                       )}
                     </span>
                     <div>
-                      {!draftOutdated && (
+                      {!needsDraftGeneration && (
                         <button
                           className="quiet-button"
                           onClick={() => void startReply(replyIntent)}
@@ -1668,10 +1727,12 @@ function App() {
                       <button
                         className="primary-button"
                         onClick={() =>
-                          draftOutdated ? void startReply(replyIntent) : void markReviewedOrCopy()
+                          needsDraftGeneration
+                            ? void startReply(replyIntent)
+                            : void markReviewedOrCopy()
                         }
                         disabled={
-                          draftOutdated
+                          needsDraftGeneration
                             ? draftState === 'streaming' ||
                               (replyIntent === 'answer' && !facts.trim())
                             : !draft.trim() ||
@@ -1680,10 +1741,10 @@ function App() {
                               (!draftComplete && !partialEdited)
                         }
                       >
-                        {draftOutdated ? (
+                        {needsDraftGeneration ? (
                           <>
                             <RefreshCcw size={14} />
-                            Update draft
+                            {replyIntent === 'answer' ? 'Generate from notes' : 'Generate draft'}
                           </>
                         ) : draftState === 'reviewed' ? (
                           <>
@@ -2016,7 +2077,7 @@ function App() {
                   className="draft-cta"
                   aria-label="Draft reply"
                   disabled={loading || !recipientFor(thread).length}
-                  onClick={() => (draft ? setReplyOpen(true) : void startReply('acknowledge'))}
+                  onClick={openReply}
                 >
                   <span>
                     <Sparkles size={16} />

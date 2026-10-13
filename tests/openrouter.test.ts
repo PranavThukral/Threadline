@@ -326,6 +326,72 @@ describe('OpenRouter grounding and streaming', () => {
   }, 10000);
 });
 describe('User mail privacy and free-call accounting', () => {
+  it('forwards current notes through the real SDK and reports the provider daily reset without generating a default reply', async () => {
+    const reset = Date.now() + 3600000;
+    let prompt: { facts: string[] } | undefined;
+    const server = createServer((request, response) => {
+      let body = '';
+      request.on('data', (chunk) => {
+        body += chunk.toString();
+      });
+      request.on('end', () => {
+        prompt = JSON.parse(JSON.parse(body).messages.at(-1).content);
+        response.writeHead(429, {
+          'Content-Type': 'application/json',
+          'x-ratelimit-reset': String(reset),
+        });
+        response.end(
+          JSON.stringify({
+            error: { code: 429, message: 'Rate limit exceeded: free-models-per-day.' },
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const sdk = new OpenRouter({
+      apiKey: 'local-test-only',
+      serverURL: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+      retryConfig: { strategy: 'none' },
+    });
+    const app = await createApp({
+      store: new RuntimeStore(':memory:'),
+      openrouter: sdk,
+      live: true,
+      logger: false,
+    });
+    try {
+      const cookie = String(
+        (await app.inject({ method: 'POST', url: '/api/v1/session', payload: {} })).headers[
+          'set-cookie'
+        ],
+      ).split(';')[0];
+      const facts = ['Early mornings would probably work better.'];
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/threads/${threads[0].id}/replies`,
+        headers: { cookie, 'idempotency-key': randomUUID() },
+        payload: { threadVersion: threads[0].version, mode: 'live', intent: 'answer', facts },
+      });
+      expect(prompt?.facts).toEqual(facts);
+      expect(response.body).toContain('event: run.failed');
+      expect(response.body).not.toContain('draft.completed');
+      const payload = JSON.parse(
+        response.body
+          .split('\n')
+          .filter((line) => line.startsWith('data: '))
+          .at(-1)!
+          .slice(6),
+      ).payload;
+      expect(payload.code).toBe('PROVIDER_DAILY_LIMIT');
+      expect(payload.retryAt).toBe(reset);
+      expect(payload.message).toContain('Live AI resumes in about 60 minutes');
+      expect(payload.message).toContain('no new reply was generated');
+    } finally {
+      await app.close();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
   it('isolates added mail by signed session, caches only in memory, and settles real free usage at zero', async () => {
     const db = new RuntimeStore(':memory:');
     let calls = 0;

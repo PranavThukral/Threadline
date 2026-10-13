@@ -139,6 +139,9 @@ describe('Workbench workflows', () => {
   it('requires fresh review after supplied facts change', async () => {
     const { user, view } = await open();
     await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    expect(mocks.stream).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
+    await user.click(screen.getByRole('button', { name: 'Generate draft' }));
     callbacks[0](
       event('draft.completed', {
         text: recordedDraft(threads[0], 'acknowledge'),
@@ -149,14 +152,14 @@ describe('Workbench workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Answer with facts' }));
     expect(screen.queryByRole('button', { name: 'Review draft' })).toBeNull();
     expect(
-      (screen.getByRole('button', { name: 'Update draft' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Generate from notes' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     await user.type(
       screen.getByRole('textbox', { name: 'Facts for this reply' }),
       'I prefer a video interview.',
     );
     expect(screen.queryByRole('button', { name: 'Copy reply' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Update draft' }));
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
     expect(mocks.stream.mock.calls[1][1]).toMatchObject({
       intent: 'answer',
       facts: ['I prefer a video interview.'],
@@ -175,14 +178,15 @@ describe('Workbench workflows', () => {
       ' Early mornings are better.',
     );
     expect(screen.queryByRole('button', { name: 'Copy reply' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Update draft' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Generate from notes' })).toBeTruthy();
     expect(Object.keys(localStorage).some((key) => key.startsWith('threadline.draft.'))).toBe(
       false,
     );
     view.unmount();
     render(<App />);
     await screen.findByRole('heading', { name: threads[0].subject });
-    await user.keyboard('{Shift>}r{/Shift}');
+    await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    expect(mocks.stream).toHaveBeenCalledTimes(2);
     expect(
       (screen.getByRole('textbox', { name: 'Facts for this reply' }) as HTMLTextAreaElement).value,
     ).toBe('');
@@ -198,10 +202,11 @@ describe('Workbench workflows', () => {
     const meeting = threads.find((mail) => mail.id === 'meeting-coordination')!;
     await user.click(screen.getByRole('button', { name: /Maya Chen: Pick a time/ }));
     await screen.findByRole('heading', { name: meeting.subject });
-    await user.keyboard('{Shift>}r{/Shift}');
+    await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    expect(mocks.stream).not.toHaveBeenCalled();
     const notes = screen.getByRole('textbox', { name: 'Facts for this reply' });
     await user.type(notes, 'Tuesday at 2pm ET works for me.');
-    await user.click(screen.getByRole('button', { name: 'Generate draft' }));
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
     const complete = (text: string) => ({
       ...event('draft.completed', { text, lintFlags: [], recipients: ['p_maya'] }),
       threadId: meeting.id,
@@ -217,8 +222,12 @@ describe('Workbench workflows', () => {
     expect(screen.queryByRole('button', { name: 'Review draft' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Copy reply' })).toBeNull();
     expect(screen.getByText(/Your notes or reply type changed/)).toBeTruthy();
+    expect(
+      (screen.getByRole('textbox', { name: 'Reply draft' }) as HTMLTextAreaElement).value,
+    ).toBe('');
+    expect(screen.getByText('View previous draft')).toBeTruthy();
     expect(mocks.stream).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole('button', { name: 'Update draft' }));
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
     expect(mocks.stream.mock.calls[1][1]).toMatchObject({
       facts: [currentNotes],
       intent: 'answer',
@@ -234,6 +243,74 @@ describe('Workbench workflows', () => {
     expect(await navigator.clipboard.readText()).toContain('early-morning option');
     expect(await navigator.clipboard.readText()).not.toContain('Tuesday at 2pm');
   }, 10000);
+  it('keeps changed notes and a blank editor on a live provider failure instead of restoring the old reply', async () => {
+    const originalApi = mocks.api.getMockImplementation()!;
+    mocks.api.mockImplementation((path: string, options?: RequestInit) =>
+      path.endsWith('/bootstrap')
+        ? Promise.resolve({ liveEnabled: true })
+        : originalApi(path, options),
+    );
+    const { user } = await open();
+    await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    const notes = screen.getByRole('textbox', { name: 'Facts for this reply' });
+    await user.click(notes);
+    await user.paste('I prefer video.');
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
+    callbacks[0]({
+      ...event('draft.completed', {
+        text: 'Hi Taylor, I prefer video. Alex',
+        lintFlags: [],
+        recipients: ['p_recruiter'],
+      }),
+      mode: 'live',
+    });
+    await screen.findByRole('button', { name: 'Review draft' });
+    await user.clear(notes);
+    await user.paste('I prefer phone.');
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
+    callbacks[1]({
+      ...event('run.failed', {
+        code: 'PROVIDER_DAILY_LIMIT',
+        message:
+          'The free daily allowance is used. Your notes remain available; no new reply was generated.',
+      }),
+      mode: 'live',
+    });
+    await screen.findByText(/no new reply was generated/);
+    expect((notes as HTMLTextAreaElement).value).toBe('I prefer phone.');
+    expect(
+      (screen.getByRole('textbox', { name: 'Reply draft' }) as HTMLTextAreaElement).value,
+    ).toBe('');
+    expect(screen.queryByRole('button', { name: 'Review draft' })).toBeNull();
+    expect(mocks.stream.mock.calls[1][1]).toMatchObject({
+      intent: 'answer',
+      facts: ['I prefer phone.'],
+      mode: 'live',
+    });
+  });
+  it('reconnects live drafting without discarding the reply notes', async () => {
+    const { user } = await open();
+    await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    const notes = screen.getByRole('textbox', { name: 'Facts for this reply' });
+    await user.click(notes);
+    await user.paste('Early mornings would probably work better.');
+    const originalApi = mocks.api.getMockImplementation()!;
+    mocks.api.mockImplementation((path: string, options?: RequestInit) =>
+      path.endsWith('/bootstrap')
+        ? Promise.resolve({ liveEnabled: true })
+        : originalApi(path, options),
+    );
+    await user.click(screen.getByRole('button', { name: 'Reconnect live AI' }));
+    await screen.findByText('Live AI reconnected. Generate a reply from your notes.');
+    expect((notes as HTMLTextAreaElement).value).toBe('Early mornings would probably work better.');
+    expect(mocks.stream).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Generate from notes' }));
+    expect(mocks.stream.mock.calls[0][1]).toMatchObject({
+      intent: 'answer',
+      facts: ['Early mornings would probably work better.'],
+      mode: 'live',
+    });
+  });
   it('keeps the synthetic clock stable across reloads', async () => {
     const { user, view } = await open();
     await user.click(screen.getByRole('button', { name: 'Open command palette' }));
@@ -250,6 +327,8 @@ describe('Workbench workflows', () => {
   it('requires review, invalidates it on edits, copies only reviewed text, and retains a closed draft', async () => {
     const { user } = await open();
     await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
+    await user.click(screen.getByRole('button', { name: 'Generate draft' }));
     const text = recordedDraft(threads[0], 'acknowledge');
     callbacks[0](event('draft.completed', { text, lintFlags: [], recipients: ['p_recruiter'] }));
     const editor = screen.getByRole('textbox', { name: 'Reply draft' });
@@ -270,6 +349,8 @@ describe('Workbench workflows', () => {
   it('rejects stale replies and analyses after switching threads even if a transport ignores abort', async () => {
     const { user } = await open();
     await user.click(screen.getByRole('button', { name: 'Draft reply' }));
+    await user.click(screen.getByRole('button', { name: 'Acknowledge' }));
+    await user.click(screen.getByRole('button', { name: 'Generate draft' }));
     const lateReply = callbacks[0];
     await user.click(screen.getByRole('button', { name: /Sam Okafor: FYI/ }));
     await screen.findByRole('heading', {

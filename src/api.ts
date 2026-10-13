@@ -30,6 +30,7 @@ import {
   routerAnalysis,
   routerReply,
   ROUTER_PROMPT_VERSION,
+  RouterRateLimitError,
   type RouterClient,
 } from './openrouter-provider.js';
 import { createCustomMail, newMailSchema, pendingBrief } from './custom-mail.js';
@@ -839,17 +840,35 @@ export async function createApp(options: AppOptions = {}) {
         ? 'PROVIDER_TIMEOUT'
         : controller.signal.aborted
           ? 'CANCELLED'
-          : typeof caught === 'object' &&
-              caught !== null &&
-              (('status' in caught && caught.status === 429) ||
-                ('statusCode' in caught && caught.statusCode === 429))
-            ? 'PROVIDER_RATE_LIMITED'
-            : safeCodes.has((caught as Error).message)
-              ? (caught as Error).message
-              : 'PROVIDER_FAILED';
+          : caught instanceof RouterRateLimitError
+            ? caught.code
+            : typeof caught === 'object' &&
+                caught !== null &&
+                (('status' in caught && caught.status === 429) ||
+                  ('statusCode' in caught && caught.statusCode === 429))
+              ? 'PROVIDER_RATE_LIMITED'
+              : safeCodes.has((caught as Error).message)
+                ? (caught as Error).message
+                : 'PROVIDER_FAILED';
+      const retryAt = caught instanceof RouterRateLimitError ? caught.retryAt : null;
+      const retryMinutes = retryAt ? Math.max(1, Math.ceil((retryAt - Date.now()) / 60000)) : null;
+      const retained =
+        kind === 'reply'
+          ? 'Your notes remain available; no new reply was generated.'
+          : 'Your mail and previous overview remain available.';
+      const failureMessage =
+        status === 'cancelled'
+          ? 'Generation cancelled.'
+          : errorCode === 'PROVIDER_DAILY_LIMIT'
+            ? `OpenRouter’s free daily allowance is used.${retryMinutes ? ` Live AI resumes in about ${retryMinutes} minutes.` : ' Try again after the daily allowance resets.'} ${retained}`
+            : errorCode === 'PROVIDER_RATE_LIMITED'
+              ? `OpenRouter has temporarily limited free requests. Try again later. ${retained}`
+              : timedOut
+                ? `The free model is taking too long. Try again shortly. ${retained}`
+                : `The model could not return a verified result. Try again shortly. ${retained}`;
       if (!reply.raw.destroyed)
         reply.raw.write(
-          `id: ${runId}:${sequence + 1}\nevent: ${status === 'cancelled' ? 'run.cancelled' : 'run.failed'}\ndata: ${JSON.stringify({ protocolVersion: 1, runId, threadId: thread.id, threadVersion: thread.version, mode, sequence: ++sequence, payload: { code: errorCode, message: status === 'cancelled' ? 'Generation cancelled.' : timedOut ? 'The free model is taking too long. Try Fetch again shortly; your mail remains available.' : errorCode === 'PROVIDER_RATE_LIMITED' ? 'OpenRouter has temporarily limited free requests. Try again later; your mail and previous overview remain available.' : 'The model could not return a verified result. Try again shortly; your existing overview remains available.', retryable: status !== 'cancelled' } })}\n\n`,
+          `id: ${runId}:${sequence + 1}\nevent: ${status === 'cancelled' ? 'run.cancelled' : 'run.failed'}\ndata: ${JSON.stringify({ protocolVersion: 1, runId, threadId: thread.id, threadVersion: thread.version, mode, sequence: ++sequence, payload: { code: errorCode, message: failureMessage, retryAt, retryable: status !== 'cancelled' } })}\n\n`,
         );
     } finally {
       finished = true;

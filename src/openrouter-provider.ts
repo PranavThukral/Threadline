@@ -20,6 +20,35 @@ export function routerModel() {
 }
 export const ROUTER_PROMPT_VERSION = 'threadline-openrouter.v5';
 export type RouterClient = Pick<OpenRouter, 'chat'>;
+export class RouterRateLimitError extends Error {
+  readonly code: 'PROVIDER_DAILY_LIMIT' | 'PROVIDER_RATE_LIMITED';
+  constructor(
+    daily: boolean,
+    readonly retryAt: number | null,
+  ) {
+    super(daily ? 'PROVIDER_DAILY_LIMIT' : 'PROVIDER_RATE_LIMITED');
+    this.code = daily ? 'PROVIDER_DAILY_LIMIT' : 'PROVIDER_RATE_LIMITED';
+  }
+}
+function routerFailure(error: unknown): never {
+  if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 429) {
+    let daily = false;
+    try {
+      if ('body' in error && typeof error.body === 'string')
+        daily = String(JSON.parse(error.body).error?.message).includes('free-models-per-day');
+    } catch {
+      /* An unstructured provider error remains a generic rate limit. */
+    }
+    const headers = 'headers' in error && error.headers instanceof Headers ? error.headers : null;
+    const reset = Number(headers?.get('x-ratelimit-reset'));
+    const retryAt =
+      Number.isSafeInteger(reset) && reset > Date.now() && reset <= Date.now() + 86400000
+        ? reset
+        : null;
+    throw new RouterRateLimitError(daily, retryAt);
+  }
+  throw error;
+}
 export async function createRouterClient(): Promise<OpenRouter | null> {
   if (process.env.AI_PROVIDER !== 'openrouter' || !process.env.OPENROUTER_API_KEY) return null;
   routerModel();
@@ -286,27 +315,36 @@ async function routerText(
   delta?: (value: string) => Promise<void>,
 ) {
   if (Buffer.byteLength(JSON.stringify(messages)) > 96 * 1024) throw new Error('PROMPT_TOO_LARGE');
-  const result = await client.chat.send(
-    {
-      chatRequest: {
-        model: routerModel(),
-        messages,
-        stream: true,
-        maxTokens,
-        temperature: 0.2,
-        reasoning: { effort: 'none' },
-        provider: { sort: 'latency', maxPrice: { prompt: '0', completion: '0', request: '0' } },
+  const result = await client.chat
+    .send(
+      {
+        chatRequest: {
+          model: routerModel(),
+          messages,
+          stream: true,
+          maxTokens,
+          temperature: 0.2,
+          reasoning: { effort: 'none' },
+          provider: { sort: 'latency', maxPrice: { prompt: '0', completion: '0', request: '0' } },
+        },
       },
-    },
-    { signal, retries: { strategy: 'none' } },
-  );
+      { signal, retries: { strategy: 'none' } },
+    )
+    .catch(routerFailure);
   if (!(Symbol.asyncIterator in result)) throw new Error('PROVIDER_FAILED');
   let text = '',
     finishReason: string | null = null,
     usage: ChatUsage | undefined;
   for await (const chunk of result as AsyncIterable<ChatStreamChunk>) {
     signal.throwIfAborted();
-    if (chunk.error) throw new Error(`PROVIDER_HTTP_${chunk.error.code}`);
+    if (chunk.error) {
+      if (chunk.error.code === 429)
+        throw new RouterRateLimitError(
+          String(chunk.error.message).includes('free-models-per-day'),
+          null,
+        );
+      throw new Error(`PROVIDER_HTTP_${chunk.error.code}`);
+    }
     for (const choice of chunk.choices) {
       if (choice.delta.content) {
         text += choice.delta.content;
